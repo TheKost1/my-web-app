@@ -1,0 +1,112 @@
+name: Deploy to Windows Server
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # Ручной запуск
+
+jobs:
+  test-and-deploy:
+    runs-on: windows-latest  # или self-hosted для своего сервера
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js (для тестов)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    
+    - name: Run HTML validation
+      shell: powershell
+      run: |
+        Write-Host "Running HTML tests..."
+        if (Test-Path "index.html") {
+            Write-Host "✓ index.html exists" -ForegroundColor Green
+            # Проверка содержимого
+            $content = Get-Content "index.html" -Raw
+            if ($content -match "<h1>.*</h1>") {
+                Write-Host "✓ HTML content is valid" -ForegroundColor Green
+            } else {
+                Write-Host "✗ HTML content is invalid" -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "✗ index.html not found" -ForegroundColor Red
+            exit 1
+        }
+    
+    - name: Run bat tests
+      shell: cmd
+      run: |
+        echo Running bat tests...
+        call test.bat
+        if errorlevel 1 exit /b 1
+    
+    - name: Run PowerShell tests
+      shell: powershell
+      run: |
+        Write-Host "Running PowerShell tests..."
+        # Test without web server first
+        if (Test-Path "index.html") {
+            Write-Host "✓ File test passed" -ForegroundColor Green
+        } else {
+            Write-Host "✗ File test failed" -ForegroundColor Red
+            exit 1
+        }
+    
+    - name: Deploy to nginx (Windows Server)
+      if: success()
+      shell: powershell
+      run: |
+        $deployPath = "C:\nginx\html\index"
+        
+        Write-Host "Deploying to nginx..." -ForegroundColor Yellow
+        
+        # Create directory if not exists
+        if (-not (Test-Path $deployPath)) {
+            New-Item -ItemType Directory -Path $deployPath -Force
+        }
+        
+        # Copy files
+        Copy-Item -Path "index.html" -Destination $deployPath -Force
+        Write-Host "✓ Files copied to $deployPath" -ForegroundColor Green
+        
+        # Optional: Copy other static files
+        Get-ChildItem -Filter "*.css", "*.js" -File | ForEach-Object {
+            Copy-Item -Path $_.FullName -Destination $deployPath -Force
+        }
+        
+        # Reload nginx if running
+        $nginxProcess = Get-Process -Name "nginx" -ErrorAction SilentlyContinue
+        if ($nginxProcess) {
+            & "C:\nginx\nginx.exe" -s reload
+            Write-Host "✓ nginx reloaded" -ForegroundColor Green
+        } else {
+            Write-Host "⚠ nginx is not running" -ForegroundColor Yellow
+        }
+        
+        # Verify deployment
+        Start-Sleep -Seconds 2
+        try {
+            $response = Invoke-WebRequest -Uri "http://localhost:80" -Method Get -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+                Write-Host "✓ Deployment verified: HTTP $($response.StatusCode)" -ForegroundColor Green
+            }
+        } catch {
+            Write-Host "⚠ Could not verify deployment: $_" -ForegroundColor Yellow
+        }
+    
+    - name: Rollback on failure
+      if: failure()
+      shell: powershell
+      run: |
+        Write-Host "Deployment failed, rolling back..." -ForegroundColor Red
+        # Сохраняем предыдущую версию
+        $backupPath = "C:\nginx\html\index_backup"
+        if (Test-Path $backupPath) {
+            Copy-Item -Path "$backupPath\*" -Destination "C:\nginx\html\index" -Force -Recurse
+            & "C:\nginx\nginx.exe" -s reload
+            Write-Host "✓ Rollback completed" -ForegroundColor Green
+        }
