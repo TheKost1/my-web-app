@@ -1,3 +1,37 @@
-- name: Run tests
-  shell: cmd
-  run: test.bat
+$content = @'
+name: Deploy to Windows Server
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run tests
+        shell: cmd
+        run: |
+          echo Running tests...
+          if not exist index.html (
+            echo FAIL: index.html not found
+            exit /b 1
+          )
+          echo PASS: index.html found
+          echo All tests passed!
+      
+      - name: Deploy to nginx
+        shell: cmd
+        run: |
+          echo Deploying to nginx...
+          if not exist C:\nginx\html\index mkdir C:\nginx\html\index
+          xcopy /E /Y C:\Users\Admin\source\repos\semenar6\AdminIS\my-web-app\* C:\nginx\html\index
+          C:\nginx\nginx.exe -s reload
+          echo Deployment complete!
+'@
+
+$content | Out-File -FilePath "C:\nginx\html\index\.github\workflows\deploy.yml" -Encoding UTF8
