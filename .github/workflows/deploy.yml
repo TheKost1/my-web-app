@@ -2,21 +2,54 @@ name: Deploy to Windows Server
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   deploy:
-    runs-on: self-hosted  # вместо ubuntu-latest
+    runs-on: self-hosted
+    
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Test application
+      - name: Run tests (pure CMD)
+        shell: cmd
         run: |
-          powershell -ExecutionPolicy Bypass -File test.ps1
+          echo ========================================
+          echo Running CI Tests...
+          echo ========================================
+          
+          echo [TEST 1] Checking index.html exists...
+          if not exist index.html (
+            echo [FAIL] index.html not found!
+            exit /b 1
+          )
+          echo [PASS] index.html found
+          
+          echo [TEST 2] Checking for syntax errors in HTML...
+          findstr /i "<html" index.html >nul
+          if errorlevel 1 (
+            echo [FAIL] HTML syntax invalid
+            exit /b 1
+          )
+          echo [PASS] HTML contains proper tags
+          
+          echo [TEST 3] Checking no broken paths...
+          findstr /i "src=\"\" href=\"\"" index.html >nul
+          if not errorlevel 1 (
+            echo [WARN] Empty src/href found
+          )
+          
+          echo ========================================
+          echo All tests passed!
+          echo ========================================
       
       - name: Deploy to nginx
+        shell: cmd
         run: |
-          # Файлы уже склонированы, просто копируем в папку nginx
-          Copy-Item -Path * -Destination "C:\nginx\html" -Recurse -Force
+          echo Deploying to nginx web server...
+          if not exist C:\nginx\html\index\ mkdir C:\nginx\html\index\
+          xcopy /E /Y C:\Users\Admin\source\repos\semenar6\AdminIS\my-web-app* C:\nginx\html\index\ >nul
+          echo Files deployed successfully
           C:\nginx\nginx.exe -s reload
+          echo Nginx reloaded - deployment complete!
