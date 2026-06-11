@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    subprocess.run(["C:\Users\Admin\source\repos\semenar6\AdminIS\my-web-app\update.bat"])
+    subprocess.run(["C:\nginx\html\index\update.bat"])
     return "OK", 200
 
 if __name__ == '__main__':

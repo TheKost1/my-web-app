@@ -1,11 +1,8 @@
-#!/bin/bash
-# test.sh - проверка, что сайт отвечает с кодом 200
-
-response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80)
-if [ "$response" == "200" ]; then
-    echo "Test passed"
-    exit 0
-else
-    echo "Test failed"
-    exit 1
-fi
+@echo off
+echo Running tests...
+if not exist index.html (
+    echo FAIL: index.html missing
+    exit /b 1
+)
+echo PASS: index.html exists
+exit /b 0

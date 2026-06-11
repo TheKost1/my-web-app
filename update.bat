@@ -1,5 +1,5 @@
 @echo off
-cd C:\Users\Admin\source\repos\semenar6\AdminIS\my-web-app
+cd C:\nginx\html\index
 git pull origin main
 test.bat
 if %errorlevel% equ 0 (
